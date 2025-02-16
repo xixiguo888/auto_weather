@@ -31,8 +31,16 @@ jobs:
         run: |
           DATE=$(date +"%Y-%m-%d")
           WEATHER=$(cat suzhou_weather.json | jq -r '"Suzhou Weather Forecast for " + .current_weather.time + ": " + (.current_weather.temperature | tostring) + "°C, Windspeed: " + (.current_weather.windspeed | tostring) + " km/h, Weather Code: " + (.current_weather.weathercode | tostring)')
-          mkdir -p weather  # 创建 weather 目录，如果不存在的话
-          echo "$WEATHER" > "weather/weather_${DATE}.txt"  # 存入 weather 目录
+          
+          # 创建 weather 目录，如果不存在的话
+          mkdir -p weather
+          
+          # 写入天气数据到指定文件
+          FILE_PATH="weather/weather_${DATE}.txt"
+          echo "$WEATHER" > "$FILE_PATH"
+          
+          # 调试输出，检查文件是否正确创建
+          echo "Created file: $FILE_PATH"
 
       # Step 4: Set up Git configuration
       - name: Setup Git Configuration
@@ -43,12 +51,21 @@ jobs:
       # Step 5: Commit the weather file
       - name: Commit Weather File
         run: |
-          git add "weather/weather_${DATE}.txt"
-          if git diff --staged --quiet; then
-            echo "No changes to commit."
-            exit 0
+          DATE=$(date +"%Y-%m-%d")
+          FILE_PATH="weather/weather_${DATE}.txt"
+          
+          # 检查文件是否存在
+          if [ -f "$FILE_PATH" ]; then
+            git add "$FILE_PATH"
+            if git diff --staged --quiet; then
+              echo "No changes to commit."
+              exit 0
+            else
+              git commit -m "Update Suzhou Weather: ${DATE}"
+            fi
           else
-            git commit -m "Update Suzhou Weather: ${DATE}"
+            echo "File $FILE_PATH not found!"
+            exit 1
           fi
 
       # Step 6: Push changes to the master branch

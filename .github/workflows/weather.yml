@@ -1,0 +1,59 @@
+name: Fetch and Save Suzhou Weather
+
+on:
+  schedule:
+    - cron: "0 6 * * *"  # 每天早上6点触发
+  workflow_dispatch:  # 允许手动触发
+
+permissions:
+  contents: write  # 允许修改内容
+
+jobs:
+  fetch_and_save_weather:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout repository
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 1  # 只拉取最新的提交
+
+      # Step 2: Fetch Suzhou weather forecast from Open-Meteo API
+      - name: Fetch Suzhou Weather
+        run: |
+          WEATHER_URL="https://api.open-meteo.com/v1/forecast?latitude=31.2980&longitude=120.5853&current_weather=true"
+          curl -s "$WEATHER_URL" -o suzhou_weather.json
+
+      # Step 3: Format the weather data
+      - name: Format Weather Data
+        run: |
+          DATE=$(date +"%Y-%m-%d")
+          WEATHER=$(cat suzhou_weather.json | jq -r '"Suzhou Weather Forecast for " + .current_weather.time + ": " + (.current_weather.temperature | tostring) + "°C, Windspeed: " + (.current_weather.windspeed | tostring) + " km/h, Weather Code: " + (.current_weather.weathercode | tostring)')
+          mkdir -p weather  # 创建 weather 目录，如果不存在的话
+          echo "$WEATHER" > "weather/weather_${DATE}.txt"  # 存入 weather 目录
+
+      # Step 4: Set up Git configuration
+      - name: Setup Git Configuration
+        run: |
+          git config user.email "xixiguo888@gmail.com"
+          git config user.name "xixiguo888"
+
+      # Step 5: Commit the weather file
+      - name: Commit Weather File
+        run: |
+          git add "weather/weather_${DATE}.txt"
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+            exit 0
+          else
+            git commit -m "Update Suzhou Weather: ${DATE}"
+          fi
+
+      # Step 6: Push changes to the master branch
+      - name: Push Changes
+        if: success()  # 仅在 commit 成功时推送
+        uses: ad-m/github-push-action@v0.6.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
